@@ -1,0 +1,81 @@
+/*!
+
+A `PropertyStore<P: Property>` is the backing storage for property values.
+
+*/
+
+use std::any::{Any, TypeId};
+
+use crate::{
+    entity::{Entity, EntityId},
+    property::{Property, PropertyInitializationKind},
+    value_vec::ValueVec,
+};
+
+pub struct PropertyValueStore<P: Property> {
+    data: ValueVec<Option<P>>,
+}
+
+impl<P: Property> Default for PropertyValueStore<P> {
+    fn default() -> Self {
+        Self {
+            data: ValueVec::default(),
+        }
+    }
+}
+
+impl<P: Property> PropertyValueStore<P> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            data: ValueVec::with_capacity(capacity),
+        }
+    }
+
+    /// Ensures capacity for at least `additional` more elements
+    pub fn reserve(&self, additional: usize) {
+        self.data.reserve(additional);
+    }
+
+    /// Returns the property value for the given entity.
+    pub fn get(&self, entity_id: EntityId<P::Entity>) -> Option<P> {
+        self.data.get(entity_id.0).unwrap_or_else(|| {
+            // `None` means index was out of bounds, which means the property is not set.
+            // Return the default if there is one.
+            if P::initialization_kind() == PropertyInitializationKind::Constant {
+                let p: P = P::default_const();
+                Some(p)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Sets the value for `entity_id` to `value`.
+    pub fn set(&self, entity_id: EntityId<P::Entity>, value: P) {
+        let index = entity_id.0;
+        let len = self.data.len();
+
+        if index >= len {
+            // The index is out of bounds, so we need to fill in the missing slots.
+            let default_value = match P::initialization_kind() {
+                PropertyInitializationKind::Constant => Some(P::default_const()),
+                _ => None,
+            };
+
+            // Pre-reserve exact capacity to avoid reallocations
+            self.data.reserve(index + 1 - len);
+
+            // Fill any missing slots up to (but not including) `idx`
+            self.data.resize_with(index, || default_value.clone());
+            // ...and finally push the provided value
+            self.data.push(Some(value));
+        } else {
+            // The index is in bounds, so we can just set the value directly.
+            self.data.set(index, Some(value));
+        }
+    }
+}

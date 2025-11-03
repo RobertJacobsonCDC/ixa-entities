@@ -1,0 +1,10 @@
+[package]
+name = "ixa-entities"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+polonius-the-crab = "0.5.0"
+paste = "1.0.15"
+ctor = "0.6.0"
+serde = { version = "1.0.228", features = ["derive"] }
