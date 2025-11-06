@@ -129,20 +129,13 @@ mod tests {
 
     use serde::Serialize;
 
-    use crate::{
-        define_entity, define_property,
-        entity::EntityId,
-        property_store::{PropertyStore, get_registered_property_count},
-        property_value_store::PropertyValueStore,
-    };
-
-    #[derive(Default)]
-    struct Person;
+    use crate::{define_entity, define_property, entity::EntityId, impl_property, property_store::{PropertyStore, get_registered_property_count}, property_value_store::PropertyValueStore};
+    
     define_entity!(Person);
 
     #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
     struct Age(u8);
-    define_property!(Age, Person);
+    impl_property!(Age, Person);
 
     #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
     enum InfectionStatus {
@@ -150,11 +143,11 @@ mod tests {
         Infected,
         Recovered,
     }
-    define_property!(InfectionStatus, Person);
+    impl_property!(InfectionStatus, Person, InfectionStatus::Susceptible);
 
     #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
     struct Vaccinated(bool);
-    define_property!(Vaccinated, Person);
+    impl_property!(Vaccinated, Person, Vaccinated(false));
 
     #[test]
     fn test_get_property_store() {

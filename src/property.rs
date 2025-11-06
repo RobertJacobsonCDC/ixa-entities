@@ -68,7 +68,7 @@ pub trait Property: Copy + Debug + PartialEq + Serialize + 'static {
     /// This transforms a `Self` into a `Self::CanonicalValue`, e.g., for storage in an index.
     /// For simple properties, this is the identity function.
     #[must_use]
-    fn make_canonical(&self) -> Self::CanonicalValue;
+    fn make_canonical(self) -> Self::CanonicalValue;
 
     /// The inverse transform of `make_canonical`. For simple properties, this is the identity function.
     #[must_use]

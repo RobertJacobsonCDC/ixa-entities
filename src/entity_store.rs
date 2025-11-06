@@ -158,14 +158,10 @@ mod tests {
         thread,
     };
 
-    use crate::{
-        define_entity,
-        entity::Entity,
-        entity_store::{
-            EntityStore, add_to_entity_registry, get_registered_entity_count,
-            initialize_entity_index,
-        },
-    };
+    use crate::{define_entity, entity::Entity, entity_store::{
+        EntityStore, add_to_entity_registry, get_registered_entity_count,
+        initialize_entity_index,
+    }, impl_entity};
 
     // Test item types
     #[derive(Debug, Clone, PartialEq)]
@@ -203,9 +199,9 @@ mod tests {
     }
 
     // Implement RegisteredItem manually for testing without macro
-    define_entity!(TestItem1);
-    define_entity!(TestItem2);
-    define_entity!(TestItem3);
+    impl_entity!(TestItem1);
+    impl_entity!(TestItem2);
+    impl_entity!(TestItem3);
 
     // Test the internal synchronization mechanisms of `initialize_entity_index()`.
     //

@@ -22,8 +22,7 @@ impl<E: Entity> EntityId<E> {
     }
 }
 
-/// All entities must implement this trait using the `define_entity!`
-/// macro. This ensures correct implementation of `Entity::index`.
+/// All entities must implement this trait using the `define_entity!` macro. This sn
 pub trait Entity: Any + Default {
     fn name() -> &'static str
     where
@@ -55,15 +54,29 @@ pub trait Entity: Any + Default {
 
 pub type BxEntity = Box<dyn Entity>;
 
-/// This macro ensures the correct implementation of the `Entity` trait. The tricky bit is the implementation of
-/// `Entity::index`, which requires synchronization in multithreaded runtimes. This is an instance of
-/// _correctness via macro_.
+
+/// Defines a zero-sized struct with the right derived traits and implements the `Entity` trait. If you already
+/// have a type defined (struct, enum, etc.), you can use the `impl_entity!` macro instead.
 #[macro_export]
 macro_rules! define_entity {
     ($item_name:ident) => {
         #[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
         struct $item_name;
 
+        $crate::impl_entity!($item_name);
+    };
+}
+
+/// Implements the `Entity` trait for the given existing type and defines a type alias
+/// of the form `MyEntityId = EntityId<MyEntity>`. For simple zero-sized types, use the
+/// `define_entity!` macro instead, which will define the struct and derive all the super traits.
+///
+/// This macro ensures the correct implementation of the `Entity` trait. The tricky bit is the implementation of
+/// `Entity::index`, which requires synchronization in multithreaded runtimes. This is an instance of
+/// _correctness via macro_.
+#[macro_export]
+macro_rules! impl_entity {
+    ($item_name:ident) => {
         // Alias of the form `MyEntityId = EntityId<MyEntity>`
         $crate::paste::paste! {
             pub type [<$item_name Id>] = $crate::entity::EntityId<$item_name>;

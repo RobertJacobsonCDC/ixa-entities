@@ -1,6 +1,286 @@
-//! Macros for implementing properties.
+/*!
+
+Macros for implementing properties.
+
+# [`define_property!`]
+
+For the most common cases, use the `define_property!` macro. This macro defines a struct or enum
+with the standard derives required by the `Property` trait and implements `Property` (via `impl_property!`) for you.
+
+```rust
+define_property!(struct Age(u8), Person);
+define_property!(struct Location(City, State), Person);
+define_property!(
+    enum InfectionStatus {
+        Susceptible,
+        Infectious,
+        Recovered,
+    } = InfectionStatus::Susceptible,
+    Person
+);
+```
+
+Notice the convenient `= <default_value>` clause that allows you to define a compile-time constant
+default value for the property.
 
 
+# [`impl_property!`]
+
+If you already have a struct or enum that you want to implement `Property` for, or if your property type declaration doesn't fit the expected syntax of `define_property` for some reason, you can use the
+`impl_property!` macro. This macro defines the `Property` trait implementation for you but doesn't take care of the `#[derive(..)]` boilerplate.
+
+```rust
+define_entity!(Person);
+
+#[derive(Copy, Clone, Debug, PartialEq, Serialize)]
+struct Age(u8);
+impl_property!(Age, Person);
+
+#[derive(Copy, Clone, Debug, PartialEq, Serialize)]
+enum InfectionStatus {
+    Susceptible,
+    Infected,
+    Recovered,
+}
+impl_property!(InfectionStatus, Person, InfectionStatus::Susceptible);
+
+#[derive(Copy, Clone, Debug, PartialEq, Serialize)]
+struct Vaccinated(bool);
+impl_property!(Vaccinated, Person, Vaccinated(false));
+```
+
+# [`impl_property_with_options`]
+
+The `impl_property_with_options` macro gives you much more control over the
+implementation of your property type. It takes optional keyword arguments
+for things like the default value, initialization strategy, and whether the
+property is required, and how the property is converted to a string for display.
+
+```rust
+impl_property_with_options!(
+    InfectionStatus,
+    Person,
+    default_const = InfectionStatus::Susceptible,
+    display_impl = |v| format!("status: {v:?}")
+);
+impl_property_with_options!(
+    ImmunityLevel,
+    Person,
+    initialization_kind = PropertyInitializationKind::Derived,
+    compute_derived_fn = |entity, _| entity.get_property::<ExposureScore>().map(|e| e / 2)
+);
+```
+
+The `Property::CanonicalValue` type is used to store the property value in
+the index. If the property type is different from the value type, you can
+specify a custom canonical type using the `canonical_value` parameter, but
+you also must provide a conversion function to and from the canonical type.
+
+```rust
+define_entity!(WeatherStation);
+
+#[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+struct DegreesFahrenheit(pub f64);
+
+#[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+struct DegreesCelsius(pub f64);
+
+// Custom canonical type
+impl_property_with_options!(
+    DegreesFahrenheit,
+    WeatherStation,
+    canonical_value = DegreesCelsius,
+    make_canonical = |s: &DegreesFahrenheit| DegreesCelsius((s.0 - 32.0) * 5.0 / 9.0),
+    make_uncanonical = |v: DegreesCelsius| DegreesFahrenheit(v.0 * 9.0 / 5.0 + 32.0),
+    display_impl = |v| format!("{:.1} °C", v.0)
+);
+```
+
+*/
+
+
+/// Defines a `struct` or `enum` with a standard set of derives and automatically invokes
+/// [`impl_property!`] for it. This macro provides a concise shorthand for defining
+/// simple property types that follow the same derive and implementation pattern.
+///
+/// The macro supports the following forms:
+///
+/// ### 1. Tuple Structs
+/// ```rust
+/// define_property!(struct Age(u8), Person);
+/// ```
+/// Expands to:
+/// ```rust
+/// #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+/// struct Age(u8);
+/// impl_property!(Age, Person);
+/// ```
+///
+/// You can define multiple tuple fields:
+/// ```rust
+/// define_property!(struct Location(City, State), Person);
+/// ```
+///
+/// ### 2. Named-field Structs
+/// ```rust
+/// define_property!(struct Coordinates { x: f32, y: f32 }, Person);
+/// ```
+/// Expands to:
+/// ```rust
+/// #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+/// struct Coordinates { x: f32, y: f32 }
+/// impl_property!(Coordinates, Person);
+/// ```
+///
+/// ### 3. Enums
+/// ```rust
+/// define_property!(
+///     enum InfectionStatus {
+///         Susceptible,
+///         Infectious,
+///         Recovered,
+///     },
+///     Person
+/// );
+/// ```
+/// Expands to:
+/// ```rust
+/// #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+/// enum InfectionStatus {
+///     Susceptible,
+///     Infectious,
+///     Recovered,
+/// }
+/// impl_property!(InfectionStatus, Person);
+/// ```
+///
+/// ### 4. Optional Default Value
+///
+/// Each of the above forms also supports an optional `= <default_value>` clause, which
+/// passes the default constant expression to `impl_property!`. This is used when the
+/// property type has a well-defined constant default value.
+///
+/// For example:
+/// ```rust
+/// define_property!(
+///     enum InfectionStatus {
+///         Susceptible,
+///         Infectious,
+///         Recovered,
+///     } = InfectionStatus::Susceptible,
+///     Person
+/// );
+/// ```
+/// Expands to:
+/// ```rust
+/// #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+/// enum InfectionStatus {
+///     Susceptible,
+///     Infectious,
+///     Recovered,
+/// }
+/// impl_property!(InfectionStatus, Person, InfectionStatus::Susceptible);
+/// ```
+///
+/// The same syntax works for structs:
+/// ```rust
+/// define_property!(struct Age(u8) = 0, Person);
+/// ```
+///
+/// Expands to:
+/// ```rust
+/// #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+/// struct Age(u8);
+/// impl_property!(Age, Person, 0);
+/// ```
+///
+/// ---
+///
+/// ### Notes
+///
+/// - The generated type always derives the following traits:
+///   `Default`, `Debug`, `PartialEq`, `Eq`, `Clone`, `Copy`, and `Serialize`.
+/// - Use the optional `= <default_value>` clause to define a compile-time constant
+///   default for the property.
+/// - Trailing commas in field or variant lists are allowed.
+/// - If you need a more complex type definition (e.g., generics, attributes, or
+///   non-`Copy` fields), define the type manually and then call
+///   [`impl_property!`](macro.impl_property.html) or
+///   [`impl_property_with_options!`](macro.impl_property_with_options.html)
+///   directly.
+#[macro_export]
+macro_rules! define_property {
+    // --- Struct (tuple) with default ---
+    (
+        struct $name:ident ( $($field_ty:ty),* $(,)? )
+        = $default:expr,
+        $entity:ident
+    ) => {
+        #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        struct $name($($field_ty),*);
+        $crate::impl_property!($name, $entity, $default);
+    };
+
+    // --- Struct (tuple) without default ---
+    (
+        struct $name:ident ( $($field_ty:ty),* $(,)? ),
+        $entity:ident
+    ) => {
+        #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        struct $name($($field_ty),*);
+        $crate::impl_property!($name, $entity);
+    };
+
+    // --- Struct (named fields) with default ---
+    (
+        struct $name:ident { $($field_name:ident : $field_ty:ty),* $(,)? }
+        = $default:expr,
+        $entity:ident
+    ) => {
+        #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        struct $name { $($field_name : $field_ty),* }
+        $crate::impl_property!($name, $entity, $default);
+    };
+
+    // --- Struct (named fields) without default ---
+    (
+        struct $name:ident { $($field_name:ident : $field_ty:ty),* $(,)? },
+        $entity:ident
+    ) => {
+        #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        struct $name { $($field_name : $field_ty),* }
+        $crate::impl_property!($name, $entity);
+    };
+
+    // --- Enum with default ---
+    (
+        enum $name:ident {
+            $($variant:ident),* $(,)?
+        }
+        = $default:expr,
+        $entity:ident
+    ) => {
+        #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        enum $name {
+            $($variant),*
+        }
+        $crate::impl_property!($name, $entity, $default);
+    };
+
+    // --- Enum without default ---
+    (
+        enum $name:ident {
+            $($variant:ident),* $(,)?
+        },
+        $entity:ident
+    ) => {
+        #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        enum $name {
+            $($variant),*
+        }
+        $crate::impl_property!($name, $entity);
+    };
+}
 
 
 /// Defines a property with the following parameters:
@@ -12,7 +292,7 @@
 macro_rules! impl_property {
     // T with constant default value
     ($property:ident, $entity:ident, $default_const:expr) => {
-        $crate::impl_property_with_options!($property, $entity, default_const = $default_const,);
+        $crate::impl_property_with_options!($property, $entity, default_const = $default_const);
     };
 
     // T without constant default value
@@ -37,6 +317,8 @@ use crate::property::{Property, PropertyInitializationKind};
 ///   - `compute_derived_fn = <expr>` — Function used to compute derived properties; defaults to `None`.
 ///   - `default_const = <expr>` — Constant default value if the property has one; defaults to `None`.
 ///   - `display_impl = <expr>` — Function converting the canonical value to a string; defaults to `|v| format!("{v:?}")`.
+///   - `make_canonical = <expr>` — Function converting from `Self` to `CanonicalValue`; defaults to `|s: &Self| *s`.
+///   - `make_uncanonical = <expr>` — Function converting from `CanonicalValue` to `Self`; defaults to `|v| v`.
 #[macro_export]
 macro_rules! impl_property_with_options {
     (
@@ -48,6 +330,8 @@ macro_rules! impl_property_with_options {
         $(, compute_derived_fn = $compute_derived_fn:expr)?
         $(, default_const = $default_const:expr)?
         $(, display_impl = $display_impl:expr)?
+        $(, make_canonical = $make_canonical:expr)?
+        $(, make_uncanonical = $make_uncanonical:expr)?
     ) => {
         $crate::__impl_property_common!(
             $property,
@@ -57,7 +341,9 @@ macro_rules! impl_property_with_options {
             $crate::impl_property_with_options!(@unwrap_or $($is_required)?, false),
             $crate::impl_property_with_options!(@unwrap_or $($compute_derived_fn)?, |_, _| panic!("property {} is not derived", stringify!($property)) ),
             $crate::impl_property_with_options!(@unwrap_or $($default_const)?, panic!("property {} has no default value", stringify!($property))),
-            $crate::impl_property_with_options!(@unwrap_or $($display_impl)?, |v| format!("{v:?}"))
+            $crate::impl_property_with_options!(@unwrap_or $($display_impl)?, |v| format!("{v:?}")),
+            $crate::impl_property_with_options!(@unwrap_or $($make_canonical)?, std::convert::identity),
+            $crate::impl_property_with_options!(@unwrap_or $($make_uncanonical)?, std::convert::identity)
         );
     };
 
@@ -88,6 +374,8 @@ macro_rules! impl_property_with_options {
 /// * `$default_const` — The constant default value if the property has one.
 /// * `$display_impl` — A function that takes a canonical value and returns a
 ///   string representation of the property.
+/// * `$make_canonical` — A function that takes a `Self` and converts it to a `Self::CanonicalValue`.
+/// * `$make_uncanonical` — A function that takes a `Self::CanonicalValue` and converts it to a `Self`.
 #[macro_export]
 macro_rules! __impl_property_common {
     (
@@ -98,7 +386,9 @@ macro_rules! __impl_property_common {
         $is_required:expr,         // Do we require that new entities have this property explicitly set?
         $compute_derived_fn:expr,  // If the property is derived, the function that computes the value
         $default_const:expr,       // If the property has a constant default initial value, the default value
-        $display_impl:expr         // A function that takes a canonical value and returns a string representation of this property
+        $display_impl:expr,         // A function that takes a canonical value and returns a string representation of this property
+        $make_canonical:expr,      // A function that takes a value and returns a canonical value
+        $make_uncanonical:expr     // A function that takes a canonical value and returns a value
     ) => {
         impl $crate::property::Property for $property {
             type Entity = $entity;
@@ -123,18 +413,22 @@ macro_rules! __impl_property_common {
                 $default_const
             }
 
-            fn make_canonical(&self) -> Self::CanonicalValue {
-                *self
+            fn make_canonical(self) -> Self::CanonicalValue {
+                $make_canonical(self)
             }
+
             fn make_uncanonical(value: Self::CanonicalValue) -> Self {
-                value
+                $make_uncanonical(value)
             }
+
             fn name() -> &'static str {
                 stringify!($property)
             }
+
             fn get_display(&self) -> String {
                 $display_impl(self)
             }
+
             fn index() -> usize {
                 // This static must be initialized with a compile-time constant expression.
                 // We use `usize::MAX` as a sentinel to mean "uninitialized". This
