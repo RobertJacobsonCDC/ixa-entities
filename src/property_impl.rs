@@ -194,7 +194,7 @@ impl_property_with_options!(
 /// impl_property!(Age, Person, 0);
 /// ```
 ///
-/// ---
+///
 ///
 /// ### Notes
 ///
@@ -205,12 +205,35 @@ impl_property_with_options!(
 /// - Trailing commas in field or variant lists are allowed.
 /// - If you need a more complex type definition (e.g., generics, attributes, or
 ///   non-`Copy` fields), define the type manually and then call
-///   [`impl_property!`](macro.impl_property.html) or
-///   [`impl_property_with_options!`](macro.impl_property_with_options.html)
+///   [`impl_property!`] or
+///   [`impl_property_with_options!`]
 ///   directly.
 #[macro_export]
 macro_rules! define_property {
-    // --- Struct (tuple) with default ---
+    // Struct (tuple) with single Option<T> field (special case)
+    (
+        struct $name:ident ( Option<$inner_ty:ty> )
+        $(= $default:expr)?,
+        $entity:ident
+    ) => {
+        #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        struct $name(Option<$inner_ty>);
+
+        // Use impl_property_with_options! to provide a custom display implementation
+        $crate::impl_property_with_options!(
+            $name,
+            $entity
+            $(, default_const = $default)?
+            , display_impl = |value: &Option<$inner_ty>| {
+                match value {
+                    Some(v) => format!("{:?}", v),
+                    None => "None".to_string(),
+                }
+            }
+        );
+    };
+
+    // Struct (tuple) with default
     (
         struct $name:ident ( $($field_ty:ty),* $(,)? )
         = $default:expr,
@@ -221,7 +244,7 @@ macro_rules! define_property {
         $crate::impl_property!($name, $entity, $default);
     };
 
-    // --- Struct (tuple) without default ---
+    // Struct (tuple) without default
     (
         struct $name:ident ( $($field_ty:ty),* $(,)? ),
         $entity:ident
@@ -231,7 +254,7 @@ macro_rules! define_property {
         $crate::impl_property!($name, $entity);
     };
 
-    // --- Struct (named fields) with default ---
+    // Struct (named fields) with default
     (
         struct $name:ident { $($field_name:ident : $field_ty:ty),* $(,)? }
         = $default:expr,
@@ -242,7 +265,7 @@ macro_rules! define_property {
         $crate::impl_property!($name, $entity, $default);
     };
 
-    // --- Struct (named fields) without default ---
+    // Struct (named fields) without default
     (
         struct $name:ident { $($field_name:ident : $field_ty:ty),* $(,)? },
         $entity:ident
@@ -252,7 +275,7 @@ macro_rules! define_property {
         $crate::impl_property!($name, $entity);
     };
 
-    // --- Enum with default ---
+    // Enum with default
     (
         enum $name:ident {
             $($variant:ident),* $(,)?
@@ -267,7 +290,7 @@ macro_rules! define_property {
         $crate::impl_property!($name, $entity, $default);
     };
 
-    // --- Enum without default ---
+    // Enum without default
     (
         enum $name:ident {
             $($variant:ident),* $(,)?
