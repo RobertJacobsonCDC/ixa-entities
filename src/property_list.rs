@@ -1,16 +1,18 @@
 /*!
 
-A `PropertyList` is just a tuple of distinct properties. It is used in two distinct places:
+A [`PropertyList`] is just a tuple of distinct properties of the same [`Entity`]. It is used in two distinct places:
 
 1. as an initialization list for a new entity, and
 2. as a query.
 
-In both instances, the order in which the properties appear is unimportant in spite of the Rust language semantics of
-tuple types.
+Both require that the properties are distinct and are properties of the
+same entity. In both instances, the order in which the properties appear
+is unimportant in spite of the Rust language semantics of tuple types.
 
-We implement the `PropertyList` trait for tuples of `Property` types of lengths up to some max. The fundamental
-capability of a property list is that it knows which `Property` types it contains and has getters and setters for
+We implement the [`PropertyList`] trait for tuples of [`Property`] types of lengths up to some max. The fundamental
+capability of a property list is that it knows which [`Property`] types it contains and has getters and setters for
 each property.
+
 
 ```rust
 (Age(32), InfectionStatus::Susceptible, WorkplaceId(123))
@@ -19,35 +21,85 @@ each property.
 */
 
 use std::any::TypeId;
+use crate::entity::Entity;
 use crate::property::Property;
 
 pub trait PropertyList: Copy + 'static {
-  fn get<P: Copy + 'static>(&self) -> Option<P>;
+  /// Validates that
+  /// 1. the properties are distinct and
+  /// 2. the properties belong to the same Entity.
+  /// If either does not hold, the error describes the problematic properties.
+  fn validate() -> Result<(), String>;
 }
 
-impl PropertyList for (&'static str, u8, u32) {
-  fn get<P: Copy + 'static>(&self) -> Option<P> {
-    let type_id = TypeId::of::<P>();
-    if type_id == TypeId::of::<&'static str>() {
-      Some(self.0)
-    }
+// The empty `PropertyList`
+impl PropertyList for () {
+  fn validate() -> Result<(), String> {
+    Ok(())
   }
 }
 
-
-pub trait Has<P: Property> {
-  fn get(&self) -> Option<P>;
-}
-
-impl<P0: Property, P1: Property> Has<P0> for (P0, P1) {
-  fn get(&self) -> Option<P0> {
-    Some(self.0)
+// A single `Property` is a `PropertyList` of length 1
+impl<P: Property> PropertyList for P {
+  fn validate() -> Result<(), String> {
+    Ok(())
   }
 }
 
-
-impl<P0: Property, P1: Property> Has<P1> for (P0, P1) {
-  fn get(&self) -> Option<P0> {
-    Some(self.1)
+// A single `Property` tuple is a `PropertyList` of length 1
+impl<P: Property> PropertyList for (P, ) {
+  fn validate() -> Result<(), String> {
+    Ok(())
   }
 }
+
+use seq_macro::seq;
+
+#[macro_export]
+macro_rules! impl_property_list {
+    ($ct:literal) => {
+        seq!(N in 1..=$ct {
+            impl<#( P~N: Property,)*> PropertyList for (#(P~N, )*){
+                fn validate() -> Result<(), String> {
+                    // For `Property` distinctness check
+                    let property_type_ids: [TypeId; $ct] = [#(P~N::type_id(),)*];
+
+                    // For `Entity` consistency check
+                    let expected_entity = P1::Entity::type_id();
+
+                    // Now for each property `P~N`...
+                    #(
+                        // Check that this property is distinct from all subsequent properties.
+                        for j in (N + 1)..$ct {
+                            if property_type_ids[N] == property_type_ids[j] {
+                                return Err(format!(
+                                    "property {} appears in both position {} and {} in the property list",
+                                    P~N::name(),
+                                    N,
+                                    j
+                                ));
+                            }
+                        }
+                        // Check that this property belongs to the same entity as the first property.
+                        if expected_entity != P~N::Entity::type_id() {
+                            return Err(format!(
+                                "properties {} and {} are not properties of the same entity.",
+                                P1::name(),
+                                P~N::name()
+                            ));
+                        }
+                    )*
+
+                    Ok(())
+                }
+            }
+        });
+    };
+}
+
+// Generate impls for tuple lengths 2 through 10.
+seq!(Z in 2..=5 {
+    impl_property_list!(Z);
+});
+
+// impl_property_list!(2);

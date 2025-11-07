@@ -24,7 +24,7 @@ impl<E: Entity> EntityId<E> {
     }
 }
 
-/// All entities must implement this trait using the `define_entity!` macro. This sn
+/// All entities must implement this trait using the `define_entity!` macro.
 pub trait Entity: Any + Default {
     fn name() -> &'static str
     where
