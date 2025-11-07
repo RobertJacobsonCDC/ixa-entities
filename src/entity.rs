@@ -17,7 +17,9 @@ pub struct EntityId<E: Entity>(pub(crate) usize, PhantomData<E>);
 
 impl<E: Entity> EntityId<E> {
     /// Only constructible from this crate.
-    pub(crate) fn new(index: usize) -> Self {
+    // pub(crate)
+    pub
+    fn new(index: usize) -> Self {
         Self(index, PhantomData)
     }
 }
@@ -38,6 +40,7 @@ pub trait Entity: Any + Default {
     /// The index of this item in the owner, which is initialized globally per type
     /// upon first access. We explicitly initialize this in a `ctor` in order to know
     /// how many [`Entity`] types exist globally when we construct any `EntityStore`.
+    #[cfg(feature = "entity_store")]
     fn index() -> usize
     where
         Self: Sized;
@@ -61,7 +64,7 @@ pub type BxEntity = Box<dyn Entity>;
 macro_rules! define_entity {
     ($item_name:ident) => {
         #[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
-        struct $item_name;
+        pub struct $item_name;
 
         $crate::impl_entity!($item_name);
     };
@@ -90,6 +93,7 @@ macro_rules! impl_entity {
                 stringify!($item_name)
             }
 
+            #[cfg(feature = "entity_store")]
             fn index() -> usize {
                 // This static must be initialized with a compile-time constant expression.
                 // We use `usize::MAX` as a sentinel to mean "uninitialized". This
@@ -121,6 +125,7 @@ macro_rules! impl_entity {
         // (The mutation happens inside of a `OnceCell`, which we can already have ready
         // when we construct `EntityStore`.) In other words, we could do away with `ctor`
         // if we were willing to have a mechanism for interior mutability for `EntityStore`.
+        #[cfg(feature = "entity_store")]
         $crate::paste::paste! {
             $crate::ctor::declarative::ctor!{
                 #[ctor]

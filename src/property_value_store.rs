@@ -79,3 +79,6 @@ impl<P: Property> PropertyValueStore<P> {
         }
     }
 }
+
+
+// See tests in `property_store.rs`.

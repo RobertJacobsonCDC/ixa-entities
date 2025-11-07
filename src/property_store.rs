@@ -130,21 +130,29 @@ mod tests {
     use serde::Serialize;
 
     use crate::{define_entity, define_property, entity::EntityId, impl_property, property_store::{PropertyStore, get_registered_property_count}, property_value_store::PropertyValueStore};
-    
+
     define_entity!(Person);
 
-    #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
-    struct Age(u8);
-    impl_property!(Age, Person);
+    // The primary advantage of the `define_property!` macro is that you don't have to remember the list of traits you
+    // need to put in the `derive` clause for a property. ()
+    define_property!(struct Age(u8), Person);
 
-    #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
-    enum InfectionStatus {
-        Susceptible,
-        Infected,
-        Recovered,
-    }
-    impl_property!(InfectionStatus, Person, InfectionStatus::Susceptible);
+    // The `define_property` macro also gives you a cute syntax for specifying the default value, although it's not
+    // much harder to specify a default using other macros.
+    define_property!(
+        enum InfectionStatus {
+            Susceptible,
+            Infected,
+            Recovered,
+        } = InfectionStatus::Susceptible,
+        Person
+    );
 
+    // If the property type has, for example, a complicated `derive` clause or
+    // other proc macro attribute magic, it might not be parsable by the simplistic
+    // `define_property!` macro. In that case, you can use the `impl_property!` macro for
+    // a type that has already been defined. The downside is that you have to manually
+    // specify the traits that all properties need to implement in the `derive` clause.
     #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
     struct Vaccinated(bool);
     impl_property!(Vaccinated, Person, Vaccinated(false));
