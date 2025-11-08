@@ -12,19 +12,22 @@ use crate::{
     value_vec::ValueVec,
 };
 
-pub struct PropertyValueStore<P: Property> {
+pub struct PropertyValueStore<E: Entity, P: Property<E>> {
     data: ValueVec<Option<P>>,
+
+    _phantom: std::marker::PhantomData<E>,
 }
 
-impl<P: Property> Default for PropertyValueStore<P> {
+impl<E: Entity, P: Property<E>> Default for PropertyValueStore<E, P> {
     fn default() -> Self {
         Self {
             data: ValueVec::default(),
+            _phantom: Default::default(),
         }
     }
 }
 
-impl<P: Property> PropertyValueStore<P> {
+impl<E: Entity, P: Property<E>> PropertyValueStore<E, P> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -32,6 +35,7 @@ impl<P: Property> PropertyValueStore<P> {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             data: ValueVec::with_capacity(capacity),
+            _phantom: Default::default(),
         }
     }
 
@@ -41,7 +45,7 @@ impl<P: Property> PropertyValueStore<P> {
     }
 
     /// Returns the property value for the given entity.
-    pub fn get(&self, entity_id: EntityId<P::Entity>) -> Option<P> {
+    pub fn get(&self, entity_id: EntityId<E>) -> Option<P> {
         self.data.get(entity_id.0).unwrap_or_else(|| {
             // `None` means index was out of bounds, which means the property is not set.
             // Return the default if there is one.
@@ -55,7 +59,7 @@ impl<P: Property> PropertyValueStore<P> {
     }
 
     /// Sets the value for `entity_id` to `value`.
-    pub fn set(&self, entity_id: EntityId<P::Entity>, value: P) {
+    pub fn set(&self, entity_id: EntityId<E>, value: P) {
         let index = entity_id.0;
         let len = self.data.len();
 
@@ -79,6 +83,5 @@ impl<P: Property> PropertyValueStore<P> {
         }
     }
 }
-
 
 // See tests in `property_store.rs`.

@@ -17,7 +17,7 @@ use std::{
 
 use polonius_the_crab::{polonius, polonius_return};
 
-use crate::{property::Property, property_value_store::PropertyValueStore};
+use crate::{entity::Entity, property::Property, property_value_store::PropertyValueStore};
 
 /// Global item index counter; keeps track of the index that will be assigned to the next entity that
 /// requests an index. Equivalently, holds a *count* of the number of entities currently registered.
@@ -32,7 +32,7 @@ static NEXT_PROPERTY_INDEX: Mutex<usize> = Mutex::new(0);
 /// construct in the constructor of `EntityStore`, so that we never have to mutate
 /// `EntityStore` itself when an `Entity` is accessed for the first time. (The
 /// `OnceCell` itself handles the interior mutability required for initialization.)
-pub fn add_to_property_registry<P: Property>() {
+pub fn add_to_property_registry<E: Entity, P: Property<E>>() {
     let _ = P::index();
 }
 
@@ -112,13 +112,13 @@ impl PropertyStore {
     /// Fetches an immutable reference to the `PropertyValueStore<P>`. This
     /// implementation lazily instantiates the item if it has not yet been instantiated.
     #[must_use]
-    pub fn get<P: Property>(&self) -> &PropertyValueStore<P> {
+    pub fn get<E: Entity, P: Property<E>>(&self) -> &PropertyValueStore<E, P> {
         let index = P::index();
         self.items
         .get(index)
         .unwrap_or_else(|| panic!("No registered property found with index = {index:?}. You must use the `define_property!` macro to create a registered property."))
-        .get_or_init(|| Box::new(PropertyValueStore::<P>::new()))
-        .downcast_ref::<PropertyValueStore::<P>>()
+        .get_or_init(|| Box::new(PropertyValueStore::<E, P>::new()))
+        .downcast_ref::<PropertyValueStore::<E, P>>()
         .expect("TypeID does not match registered property type. You must use the `define_property!` macro to create a registered property.")
     }
 }
@@ -127,14 +127,21 @@ impl PropertyStore {
 mod tests {
     use std::marker::PhantomData;
 
+    use ctor::declarative::ctor;
     use serde::Serialize;
 
-    use crate::{define_entity, define_property, entity::EntityId, impl_property, property_store::{PropertyStore, get_registered_property_count}, property_value_store::PropertyValueStore};
+    use crate::{
+        define_entity, define_property,
+        entity::EntityId,
+        impl_property,
+        property_store::{PropertyStore, get_registered_property_count},
+        property_value_store::PropertyValueStore,
+    };
 
     define_entity!(Person);
 
     // The primary advantage of the `define_property!` macro is that you don't have to remember the list of traits you
-    // need to put in the `derive` clause for a property. ()
+    // need to put in the `derive` clause for a property.
     define_property!(struct Age(u8), Person);
 
     // The `define_property` macro also gives you a cute syntax for specifying the default value, although it's not
@@ -162,17 +169,17 @@ mod tests {
         let property_store = PropertyStore::new();
 
         {
-            let ages: &PropertyValueStore<Age> = property_store.get();
+            let ages: &PropertyValueStore<_, Age> = property_store.get();
             ages.set(EntityId::<Person>::new(0), Age(12));
             ages.set(EntityId::<Person>::new(1), Age(33));
             ages.set(EntityId::<Person>::new(2), Age(44));
 
-            let infection_statuses: &PropertyValueStore<InfectionStatus> = property_store.get();
+            let infection_statuses: &PropertyValueStore<_, InfectionStatus> = property_store.get();
             infection_statuses.set(EntityId::<Person>::new(0), InfectionStatus::Susceptible);
             infection_statuses.set(EntityId::<Person>::new(1), InfectionStatus::Susceptible);
             infection_statuses.set(EntityId::<Person>::new(2), InfectionStatus::Infected);
 
-            let vaccine_status: &PropertyValueStore<Vaccinated> = property_store.get();
+            let vaccine_status: &PropertyValueStore<_, Vaccinated> = property_store.get();
             vaccine_status.set(EntityId::<Person>::new(0), Vaccinated(true));
             vaccine_status.set(EntityId::<Person>::new(1), Vaccinated(false));
             vaccine_status.set(EntityId::<Person>::new(2), Vaccinated(true));
@@ -180,12 +187,12 @@ mod tests {
 
         // Verify that `get` returns the expected values
         {
-            let ages: &PropertyValueStore<Age> = property_store.get();
+            let ages: &PropertyValueStore<_, Age> = property_store.get();
             assert_eq!(ages.get(EntityId::<Person>::new(0)), Some(Age(12)));
             assert_eq!(ages.get(EntityId::<Person>::new(1)), Some(Age(33)));
             assert_eq!(ages.get(EntityId::<Person>::new(2)), Some(Age(44)));
 
-            let infection_statuses: &PropertyValueStore<InfectionStatus> = property_store.get();
+            let infection_statuses: &PropertyValueStore<_, InfectionStatus> = property_store.get();
             assert_eq!(
                 infection_statuses.get(EntityId::<Person>::new(0)),
                 Some(InfectionStatus::Susceptible)
@@ -199,7 +206,7 @@ mod tests {
                 Some(InfectionStatus::Infected)
             );
 
-            let vaccine_status: &PropertyValueStore<Vaccinated> = property_store.get();
+            let vaccine_status: &PropertyValueStore<_, Vaccinated> = property_store.get();
             assert_eq!(
                 vaccine_status.get(EntityId::<Person>::new(0)),
                 Some(Vaccinated(true))

@@ -1,94 +1,77 @@
 /*!
 
-A [`PropertyList`] is just a tuple of distinct properties of the same [`Entity`]. It is used in two distinct places:
+A [`PropertyList<E>`] is just a tuple of distinct properties of the same [`Entity`] `E`. It
+is used in two distinct places: as an initialization list for a new entity, and as a query.
 
-1. as an initialization list for a new entity, and
-2. as a query.
+Both use cases have the following two constraints:
 
-Both require that the properties are distinct and are properties of the
-same entity. In both instances, the order in which the properties appear
-is unimportant in spite of the Rust language semantics of tuple types.
+1. The properties are properties of the same entity.
+2. The properties are distinct.
 
-We implement the [`PropertyList`] trait for tuples of [`Property`] types of lengths up to some max. The fundamental
-capability of a property list is that it knows which [`Property`] types it contains and has getters and setters for
-each property.
+We enforce the first constraint with the type system by only implementing `PropertyList<E>`
+for tuples of types implementing `Property<E>` (of length up to some max). Using properties
+for mismatched entities will result in a nice compile-time error at the point of use.
 
+Unfortunately, the second constraint has to be enforced at runtime. We implement `PropertyList::validate()` to do this.
 
-```rust
-(Age(32), InfectionStatus::Susceptible, WorkplaceId(123))
-```
+For both use cases, the order in which the properties appear is
+unimportant in spite of the Rust language semantics of tuple types.
 
 */
 
 use std::any::TypeId;
-use crate::entity::Entity;
-use crate::property::Property;
+use seq_macro::seq;
 
-pub trait PropertyList: Copy + 'static {
-  /// Validates that
-  /// 1. the properties are distinct and
-  /// 2. the properties belong to the same Entity.
-  /// If either does not hold, the error describes the problematic properties.
-  fn validate() -> Result<(), String>;
+use crate::{entity::Entity, property::Property};
+
+pub trait PropertyList<E: Entity>: Copy + 'static {
+    /// Validates that the properties are distinct. If not, returns a string describing the problematic properties.
+    fn validate() -> Result<(), String>;
 }
 
-// The empty `PropertyList`
-impl PropertyList for () {
+// The empty tuple is an empty `PropertyList<E>` for every `E: Entity`.
+impl<E: Entity> PropertyList<E> for () {
   fn validate() -> Result<(), String> {
     Ok(())
   }
 }
 
+// ToDo: Why does the following trigger a "conflicting implementation" error?
 // A single `Property` is a `PropertyList` of length 1
-impl<P: Property> PropertyList for P {
-  fn validate() -> Result<(), String> {
-    Ok(())
-  }
-}
+// impl<E: Entity, P: Property<E>> PropertyList<E> for P {
+//     fn validate() -> Result<(), String> {
+//         Ok(())
+//     }
+// }
 
 // A single `Property` tuple is a `PropertyList` of length 1
-impl<P: Property> PropertyList for (P, ) {
-  fn validate() -> Result<(), String> {
-    Ok(())
-  }
+impl<E: Entity, P: Property<E>> PropertyList<E> for (P,) {
+    fn validate() -> Result<(), String> {
+        Ok(())
+    }
 }
 
-use seq_macro::seq;
 
 #[macro_export]
 macro_rules! impl_property_list {
     ($ct:literal) => {
         seq!(N in 1..=$ct {
-            impl<#( P~N: Property,)*> PropertyList for (#(P~N, )*){
+            impl<E: Entity, #( P~N: Property<E>,)*> PropertyList<E> for (#(P~N, )*){
                 fn validate() -> Result<(), String> {
                     // For `Property` distinctness check
                     let property_type_ids: [TypeId; $ct] = [#(P~N::type_id(),)*];
 
-                    // For `Entity` consistency check
-                    let expected_entity = P1::Entity::type_id();
-
-                    // Now for each property `P~N`...
-                    #(
-                        // Check that this property is distinct from all subsequent properties.
-                        for j in (N + 1)..$ct {
-                            if property_type_ids[N] == property_type_ids[j] {
+                    for i in 0..$ct - 1 {
+                        for j in (i + 1)..$ct {
+                            if property_type_ids[i] == property_type_ids[j] {
                                 return Err(format!(
-                                    "property {} appears in both position {} and {} in the property list",
-                                    P~N::name(),
-                                    N,
+                                    "the same property appears in both position {} and {} in the property list",
+                                    i,
                                     j
                                 ));
                             }
                         }
-                        // Check that this property belongs to the same entity as the first property.
-                        if expected_entity != P~N::Entity::type_id() {
-                            return Err(format!(
-                                "properties {} and {} are not properties of the same entity.",
-                                P1::name(),
-                                P~N::name()
-                            ));
-                        }
-                    )*
+                    }
 
                     Ok(())
                 }
@@ -101,5 +84,3 @@ macro_rules! impl_property_list {
 seq!(Z in 2..=5 {
     impl_property_list!(Z);
 });
-
-// impl_property_list!(2);

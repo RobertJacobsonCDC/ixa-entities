@@ -158,10 +158,15 @@ mod tests {
         thread,
     };
 
-    use crate::{define_entity, entity::Entity, entity_store::{
-        EntityStore, add_to_entity_registry, get_registered_entity_count,
-        initialize_entity_index,
-    }, impl_entity};
+    use crate::{
+        define_entity,
+        entity::Entity,
+        entity_store::{
+            EntityStore, add_to_entity_registry, get_registered_entity_count,
+            initialize_entity_index,
+        },
+        impl_entity,
+    };
 
     // Test item types
     #[derive(Debug, Clone, PartialEq)]

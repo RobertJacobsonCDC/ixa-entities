@@ -5,11 +5,12 @@ An integration test that demonstrates the code works from client code external t
 */
 #![allow(unused)]
 
-use ixa_entities::{define_entity, define_property, impl_property, property::Property, property_store::PropertyStore, serde::Serialize};
-use ixa_entities::entity::EntityId;
 #[cfg(feature = "entity_store")]
 use ixa_entities::entity_store::EntityStore;
-use ixa_entities::property_value_store::PropertyValueStore;
+use ixa_entities::{
+    define_entity, define_property, entity::EntityId, impl_property, property::Property,
+    property_store::PropertyStore, property_value_store::PropertyValueStore, serde::Serialize,
+};
 
 define_entity!(Person);
 
@@ -27,8 +28,6 @@ define_property!(
     Person
 );
 
-
-
 fn main() {
     #[cfg(feature = "entity_store")]
     {
@@ -44,19 +43,20 @@ fn main() {
 
     let property_store = PropertyStore::new();
 
-
     {
-        let ages: &PropertyValueStore<Age> = property_store.get();
+        let ages: &PropertyValueStore<_, Age> = property_store.get();
         ages.set(PersonId::new(0), Age(12));
         ages.set(PersonId::new(1), Age(33));
         ages.set(PersonId::new(2), Age(44));
 
-        let infection_statuses: &PropertyValueStore<InfectionStatus> = property_store.get();
+        let infection_statuses: &PropertyValueStore<_, InfectionStatus> = property_store.get();
         infection_statuses.set(PersonId::new(0), InfectionStatus::Susceptible);
         infection_statuses.set(PersonId::new(1), InfectionStatus::Susceptible);
         infection_statuses.set(PersonId::new(2), InfectionStatus::Infected);
 
-        let vaccine_status: &PropertyValueStore<Vaccinated> = property_store.get();
+        // Subsequent calls to `set` are enough to allow the compiler to infer the type of `vaccine_status`,
+        // but leaving off the type annotation for the property should probably be discouraged.
+        let vaccine_status: &PropertyValueStore<_, _> = property_store.get();
         vaccine_status.set(PersonId::new(0), Vaccinated(true));
         vaccine_status.set(PersonId::new(1), Vaccinated(false));
         vaccine_status.set(PersonId::new(2), Vaccinated(true));
@@ -64,12 +64,12 @@ fn main() {
 
     // Verify that `get` returns the expected values
     {
-        let ages: &PropertyValueStore<Age> = property_store.get();
+        let ages: &PropertyValueStore<_, Age> = property_store.get();
         assert_eq!(ages.get(PersonId::new(0)), Some(Age(12)));
         assert_eq!(ages.get(PersonId::new(1)), Some(Age(33)));
         assert_eq!(ages.get(PersonId::new(2)), Some(Age(44)));
 
-        let infection_statuses: &PropertyValueStore<InfectionStatus> = property_store.get();
+        let infection_statuses: &PropertyValueStore<_, InfectionStatus> = property_store.get();
         assert_eq!(
             infection_statuses.get(PersonId::new(0)),
             Some(InfectionStatus::Susceptible)
@@ -83,18 +83,12 @@ fn main() {
             Some(InfectionStatus::Infected)
         );
 
-        let vaccine_status: &PropertyValueStore<Vaccinated> = property_store.get();
-        assert_eq!(
-            vaccine_status.get(PersonId::new(0)),
-            Some(Vaccinated(true))
-        );
+        let vaccine_status: &PropertyValueStore<_, Vaccinated> = property_store.get();
+        assert_eq!(vaccine_status.get(PersonId::new(0)), Some(Vaccinated(true)));
         assert_eq!(
             vaccine_status.get(PersonId::new(1)),
             Some(Vaccinated(false))
         );
-        assert_eq!(
-            vaccine_status.get(PersonId::new(2)),
-            Some(Vaccinated(true))
-        );
+        assert_eq!(vaccine_status.get(PersonId::new(2)), Some(Vaccinated(true)));
     }
 }

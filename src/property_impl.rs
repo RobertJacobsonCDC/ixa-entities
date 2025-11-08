@@ -121,7 +121,6 @@ impl_property_with_options!(
 
 */
 
-
 /// Defines a `struct` or `enum` with a standard set of derives and automatically invokes
 /// [`impl_property!`] for it. This macro provides a concise shorthand for defining
 /// simple property types that follow the same derive and implementation pattern.
@@ -328,7 +327,6 @@ macro_rules! define_property {
     };
 }
 
-
 /// Defines a property with the following parameters:
 /// * `$property`: A name for the identifier type of the property
 /// * `$entity`: The entity type this property is associated with
@@ -436,8 +434,7 @@ macro_rules! __impl_property_common {
         $make_canonical:expr,      // A function that takes a value and returns a canonical value
         $make_uncanonical:expr     // A function that takes a canonical value and returns a value
     ) => {
-        impl $crate::property::Property for $property {
-            type Entity = $entity;
+        impl $crate::property::Property<$entity> for $property {
             type CanonicalValue = $canonical_value;
 
             fn initialization_kind() -> $crate::property::PropertyInitializationKind {
@@ -450,7 +447,7 @@ macro_rules! __impl_property_common {
 
             fn compute_derived(
                 _context: &$crate::Context,
-                _entity_id: $crate::entity::EntityId<Self::Entity>,
+                _entity_id: $crate::entity::EntityId<$entity>,
             ) -> Self::CanonicalValue {
                 $compute_derived_fn(_context, _entity_id)
             }
@@ -502,8 +499,8 @@ macro_rules! __impl_property_common {
         $crate::paste::paste! {
             $crate::ctor::declarative::ctor!{
                 #[ctor]
-                fn [<_register_property_$property:snake>]() {
-                    $crate::property_store::add_to_property_registry::<$property>();
+                fn [<_register_property_ $entity:snake _ $property:snake>]() {
+                    $crate::property_store::add_to_property_registry::<$entity, $property>();
                 }
             }
         }

@@ -32,14 +32,15 @@ pub enum PropertyInitializationKind {
     Constant,
 }
 
-/// All properties must implement this trait using one of the `define_property` macros.
-pub trait Property: Copy + Debug + PartialEq + Serialize + 'static {
-    /// The entity this property is associated with.
-    type Entity: Entity;
+// A type-erased interface for properties.
+pub trait AnyProperty: Copy + Debug + PartialEq + Serialize + 'static {}
+impl<T> AnyProperty for T where T: Copy + Debug + PartialEq + Serialize + 'static {}
 
+/// All properties must implement this trait using one of the `define_property` macros.
+pub trait Property<E: Entity>: AnyProperty {
     /// Some properties might store a transformed version of the value in the index. This is the
     /// type of the transformed value. For simple properties this will be the same as `Self`.
-    type CanonicalValue: Property;
+    type CanonicalValue: AnyProperty;
 
     /// The kind of initialization this property has.
     #[must_use]
@@ -59,7 +60,7 @@ pub trait Property: Copy + Debug + PartialEq + Serialize + 'static {
 
     /// Compute the value of the property, possibly by accessing the context and using the entity's ID.
     #[must_use]
-    fn compute_derived(context: &Context, entity_id: EntityId<Self::Entity>) -> Self;
+    fn compute_derived(context: &Context, entity_id: EntityId<E>) -> Self;
 
     /// Return the default initial constant value.
     #[must_use]
@@ -99,7 +100,7 @@ pub trait Property: Copy + Debug + PartialEq + Serialize + 'static {
     fn index() -> usize;
 }
 
-#[cfg(disabled)]
+#[cfg(feature = "disabled")]
 mod tests {
     use super::*;
     use crate::{define_entity, define_property};

@@ -18,8 +18,7 @@ pub struct EntityId<E: Entity>(pub(crate) usize, PhantomData<E>);
 impl<E: Entity> EntityId<E> {
     /// Only constructible from this crate.
     // pub(crate)
-    pub
-    fn new(index: usize) -> Self {
+    pub fn new(index: usize) -> Self {
         Self(index, PhantomData)
     }
 }
@@ -56,7 +55,6 @@ pub trait Entity: Any + Default {
 }
 
 pub type BxEntity = Box<dyn Entity>;
-
 
 /// Defines a zero-sized struct with the right derived traits and implements the `Entity` trait. If you already
 /// have a type defined (struct, enum, etc.), you can use the `impl_entity!` macro instead.
