@@ -17,7 +17,10 @@ use std::{
 
 use polonius_the_crab::{polonius, polonius_return};
 
-use crate::{entity::Entity, property::Property, property_value_store::PropertyValueStore};
+use crate::{
+    entity::Entity, entity_store::register_property_with_entity, property::Property,
+    property_value_store::PropertyValueStore,
+};
 
 /// Global item index counter; keeps track of the index that will be assigned to the next entity that
 /// requests an index. Equivalently, holds a *count* of the number of entities currently registered.
@@ -33,7 +36,14 @@ static NEXT_PROPERTY_INDEX: Mutex<usize> = Mutex::new(0);
 /// `EntityStore` itself when an `Entity` is accessed for the first time. (The
 /// `OnceCell` itself handles the interior mutability required for initialization.)
 pub fn add_to_property_registry<E: Entity, P: Property<E>>() {
+    // Initializes the index for the property type.
     let _ = P::index();
+    // Registers the property with the entity type.
+    register_property_with_entity(
+        <E as Entity>::type_id(),
+        <P as Property<E>>::type_id(),
+        P::is_required(),
+    );
 }
 
 /// A convenience getter for `NEXT_ENTITY_INDEX`.

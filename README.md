@@ -42,7 +42,7 @@ impl<V> ValueVec<V> {
 
 - The entity ID should know the `Entity` type so that a `PersonId` can't be used as a `SettingId`.
 - The original `PersonId` type is opaque–it cannot be created or destructured outside of the `ixa` crate.  To achieve the same thing, we do this: `EntityId<E: Entity>(usize, PhantomData<E>)`
-
+- `Entity` cannot store the entity count, because we don't want client code to be able to create a new entity (or modify the entity count), and the `Entity` types are implemented in client code. So we store the entity count in the `EntityStore`.
 
 ## Properties
 

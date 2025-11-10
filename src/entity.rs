@@ -11,9 +11,16 @@ use std::{
     marker::PhantomData,
 };
 
+use crate::entity_store::get_entity_metadata_static;
+
 /// A type that can be named and used (copied, cloned) but not created outside of this crate.
 /// In the `define_entity!` macro we define the alias `pub type MyEntityId = EntityId<MyEntity>`.
 pub struct EntityId<E: Entity>(pub(crate) usize, PhantomData<E>);
+
+pub struct EntityMetadata {
+    properties: &'static [TypeId],
+    required: &'static [TypeId],
+}
 
 impl<E: Entity> EntityId<E> {
     /// Only constructible from this crate.
@@ -34,6 +41,23 @@ pub trait Entity: Any + Default {
         Self: Sized,
     {
         TypeId::of::<Self>()
+    }
+
+    fn property_ids() -> &'static [TypeId]
+    where
+        Self: Sized,
+    {
+        let (property_ids, _) = unsafe { get_entity_metadata_static(<Self as Entity>::type_id()) };
+        property_ids
+    }
+
+    fn required_property_ids() -> &'static [TypeId]
+    where
+        Self: Sized,
+    {
+        let (_, required_property_ids) =
+            unsafe { get_entity_metadata_static(<Self as Entity>::type_id()) };
+        required_property_ids
     }
 
     /// The index of this item in the owner, which is initialized globally per type
@@ -60,11 +84,21 @@ pub type BxEntity = Box<dyn Entity>;
 /// have a type defined (struct, enum, etc.), you can use the `impl_entity!` macro instead.
 #[macro_export]
 macro_rules! define_entity {
-    ($item_name:ident) => {
+    ($entity_name:ident) => {
         #[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
-        pub struct $item_name;
+        pub struct $entity_name {
+            // Field holds the total count of all entities of this type. Equivalently,
+            // this is the index of the next entity to be created.
+            entity_count: usize,
+        }
 
-        $crate::impl_entity!($item_name);
+        impl $entity_name {
+            pub fn new() -> Self {
+                Self::default()
+            }
+        }
+
+        $crate::impl_entity!($entity_name);
     };
 }
 
@@ -77,18 +111,18 @@ macro_rules! define_entity {
 /// _correctness via macro_.
 #[macro_export]
 macro_rules! impl_entity {
-    ($item_name:ident) => {
+    ($entity_name:ident) => {
         // Alias of the form `MyEntityId = EntityId<MyEntity>`
         $crate::paste::paste! {
-            pub type [<$item_name Id>] = $crate::entity::EntityId<$item_name>;
+            pub type [<$entity_name Id>] = $crate::entity::EntityId<$entity_name>;
         }
 
-        impl $crate::entity::Entity for $item_name {
+        impl $crate::entity::Entity for $entity_name {
             fn name() -> &'static str
             where
                 Self: Sized,
             {
-                stringify!($item_name)
+                stringify!($entity_name)
             }
 
             #[cfg(feature = "entity_store")]
@@ -127,8 +161,8 @@ macro_rules! impl_entity {
         $crate::paste::paste! {
             $crate::ctor::declarative::ctor!{
                 #[ctor]
-                fn [<_register_entity_$item_name:snake>]() {
-                    $crate::entity_store::add_to_entity_registry::<$item_name>();
+                fn [<_register_entity_$entity_name:snake>]() {
+                    $crate::entity_store::add_to_entity_registry::<$entity_name>();
                 }
             }
         }

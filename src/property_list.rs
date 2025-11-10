@@ -20,6 +20,7 @@ unimportant in spite of the Rust language semantics of tuple types.
 */
 
 use std::any::TypeId;
+
 use seq_macro::seq;
 
 use crate::{entity::Entity, property::Property};
@@ -27,13 +28,24 @@ use crate::{entity::Entity, property::Property};
 pub trait PropertyList<E: Entity>: Copy + 'static {
     /// Validates that the properties are distinct. If not, returns a string describing the problematic properties.
     fn validate() -> Result<(), String>;
+
+    /// Checks that this property list includes all properties in the given list.
+    fn contains_properties(property_type_ids: &[TypeId]) -> bool;
+
+    /// Checks that this property list contains all required properties of the entity.
+    fn contains_required_properties() -> bool {
+        Self::contains_properties(E::required_property_ids())
+    }
 }
 
 // The empty tuple is an empty `PropertyList<E>` for every `E: Entity`.
 impl<E: Entity> PropertyList<E> for () {
-  fn validate() -> Result<(), String> {
-    Ok(())
-  }
+    fn validate() -> Result<(), String> {
+        Ok(())
+    }
+    fn contains_properties(property_type_ids: &[TypeId]) -> bool {
+        property_type_ids.is_empty()
+    }
 }
 
 // ToDo: Why does the following trigger a "conflicting implementation" error?
@@ -49,8 +61,10 @@ impl<E: Entity, P: Property<E>> PropertyList<E> for (P,) {
     fn validate() -> Result<(), String> {
         Ok(())
     }
+    fn contains_properties(property_type_ids: &[TypeId]) -> bool {
+        property_type_ids.len() == 1 && property_type_ids[0] == P::type_id()
+    }
 }
-
 
 #[macro_export]
 macro_rules! impl_property_list {
@@ -74,6 +88,12 @@ macro_rules! impl_property_list {
                     }
 
                     Ok(())
+                }
+
+                fn contains_properties(property_type_ids: &[TypeId]) -> bool {
+                    let self_property_type_ids: [TypeId; $ct] = [#(P~N::type_id(),)*];
+
+                    property_type_ids.len() <= $ct && property_type_ids.iter().all(|id| self_property_type_ids.contains(id))
                 }
             }
         });
