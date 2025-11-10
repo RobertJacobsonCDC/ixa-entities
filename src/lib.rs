@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+mod EntityKeyedMap;
 pub mod context;
 pub mod entity;
 #[cfg(feature = "entity_store")]

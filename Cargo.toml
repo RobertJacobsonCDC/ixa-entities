@@ -17,3 +17,4 @@ paste = "1.0.15"
 ctor = "0.6.0"
 serde = { version = "1.0.228", features = ["derive"] }
 seq-macro = "0.3.6"
+delegate = "0.13.4"
