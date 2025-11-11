@@ -1,11 +1,11 @@
 /*!
 
-The EntityStore maintains all registered entities and
-tracks their counts (valid EntityId<Entity> values).
+The `EntityStore` maintains all registered entities and
+tracks their counts (valid `EntityId<Entity>` values).
 
 Although each Entity type may own its own data, client code cannot
-create or destructure EntityId<Entity> values directly. Instead,
-EntityStore centrally manages entity counts for all registered types.
+create or destructure `EntityId<Entity>` values directly. Instead,
+`EntityStore` centrally manages entity counts for all registered types.
 
 */
 
@@ -30,7 +30,7 @@ static NEXT_ENTITY_INDEX: Mutex<usize> = Mutex::new(0);
 /// For each entity we keep track of the properties associated with it. This maps
 /// `entity_type_id` to `(vec_of_all_property_type_ids, vec_of_required_property_type_ids)`.
 /// This data is actually written by the property ctors with a call to
-/// `register_property_with_entity`.
+/// [`register_property_with_entity()`].
 static ENTITY_METADATA: LazyLock<Mutex<HashMap<TypeId, (Vec<TypeId>, Vec<TypeId>)>>> =
     LazyLock::new(|| Mutex::new(HashMap::default()));
 
@@ -65,7 +65,7 @@ pub unsafe fn get_entity_metadata_static(
         .entry(entity_type_id)
         .or_insert_with(|| (Vec::new(), Vec::new()));
 
-    // Transmute to 'static slices. This assumes these Vecs will never move or deallocate.
+    // Transmute to `'static` slices. This assumes these `Vec`s will never move or deallocate.
     let props_static: &'static [TypeId] =
         unsafe { std::mem::transmute::<&[TypeId], &'static [TypeId]>(props.as_slice()) };
     let reqs_static: &'static [TypeId] =
@@ -130,10 +130,26 @@ pub fn initialize_entity_index(plugin_index: &AtomicUsize) -> usize {
     }
 }
 
+/// We store our own instance data alongside the `Entity` instance itself.
+pub struct EntityRecord {
+    /// The total count of all entities of this type (i.e., the next index to assign).
+    pub(crate) entity_count: usize,
+    /// Lazily initialized `Entity` instance.
+    pub(crate) entity: OnceCell<Box<dyn Any>>,
+}
+
+impl EntityRecord {
+    pub(crate) fn new() -> Self {
+        Self {
+            entity_count: 0,
+            entity: OnceCell::new(),
+        }
+    }
+}
+
 /// A wrapper around a vector of entities.
 pub struct EntityStore {
-    // A vector of (entity, entity_count)` pairs
-    items: Vec<(OnceCell<Box<dyn Any>>, usize)>,
+    items: Vec<EntityRecord>,
 }
 
 impl Default for EntityStore {
@@ -143,14 +159,13 @@ impl Default for EntityStore {
 }
 
 impl EntityStore {
-    /// Creates a new [`EntityStore`], allocating the exact number of slots as there are registered
-    /// [`Entity`]s.
+    /// Creates a new [`EntityStore`], allocating the exact number of slots as there are
+    /// registered [`Entity`]s.
     ///
-    /// This method assumes all types implementing `Entity` have been implemented
-    /// _correctly_. This is one of the pitfalls of this pattern: there is
-    /// no guarantee that types implementing `Entity` followed the rules. We can
-    /// have at least some confidence, though, in their correctness by supplying a
-    /// correct implementation via a macro.
+    /// This method assumes all types implementing `Entity` have been implemented _correctly_.
+    /// This is one of the pitfalls of this pattern: there is no guarantee that types
+    /// implementing `Entity` followed the rules. We can have at least some confidence,
+    /// though, in their correctness by supplying a correct implementation via a macro.
     ///
     /// Observe that we create an empty `OnceCell` in each slot in this implementation, but
     /// we could just as easily eagerly initialize the [`RegisteredItem`] instances here
@@ -158,7 +173,7 @@ impl EntityStore {
     pub fn new() -> Self {
         let num_items = get_registered_entity_count();
         Self {
-            items: (0..num_items).map(|_| (OnceCell::new(), 0usize)).collect(),
+            items: (0..num_items).map(|_| EntityRecord::new()).collect(),
         }
     }
 
@@ -170,7 +185,7 @@ impl EntityStore {
         self.items
         .get(index)
         .unwrap_or_else(|| panic!("No registered item found with index = {index:?}. You must use the `define_registered_item!` macro to create a registered item."))
-            .0
+        .entity
         .get_or_init(|| R::new_boxed())
         .downcast_ref::<R>()
         .expect("TypeID does not match registered item type. You must use the `define_registered_item!` macro to create a registered item.")
@@ -186,7 +201,7 @@ impl EntityStore {
         // If the item is already initialized, return a mutable reference.
         // Use polonius to address borrow checker limitations.
         polonius!(|self_shadow| -> &'polonius mut E {
-            if let Some(any) = self_shadow.items[index].0.get_mut() {
+            if let Some(any) = self_shadow.items[index].entity.get_mut() {
                 polonius_return!(
                     any.downcast_mut::<E>()
                         .expect("TypeID does not match registered item type")
@@ -196,24 +211,26 @@ impl EntityStore {
         });
 
         // Initialize the item.
-        let (cell, _) = self_shadow
-        .items
-        .get_mut(index)
-        .unwrap_or_else(|| panic!("No registered item found with index = {index:?}. You must use the `define_registered_item!` macro to create a registered item."));
-        let _ = cell.set(E::new_boxed());
-        cell.get_mut()
-        .unwrap()
-        .downcast_mut::<E>()
-        .expect("TypeID does not match the registered item type. You must use the `define_registered_item!` macro to create a registered item.")
+        let record = self_shadow
+            .items
+            .get_mut(index)
+            .unwrap_or_else(|| panic!("No registered item found with index = {index:?}. You must use the `define_registered_item!` macro to create a registered item."));
+        let _ = record.entity.set(E::new_boxed());
+        record
+            .entity
+            .get_mut()
+            .unwrap()
+            .downcast_mut::<E>()
+            .expect("TypeID does not match the registered item type. You must use the `define_registered_item!` macro to create a registered item.")
     }
 
     /// Creates a new `EntityId` for the given `Entity` type `E`.
     /// Increments the entity counter and returns the next valid ID.
     pub(crate) fn new_entity_id<E: Entity>(&mut self) -> EntityId<E> {
         let index = E::index();
-        let (_, ref mut count) = self.items[index];
-        let id = *count;
-        *count += 1;
+        let record = &mut self.items[index];
+        let id = record.entity_count;
+        record.entity_count += 1;
         EntityId::new(id)
     }
 }
