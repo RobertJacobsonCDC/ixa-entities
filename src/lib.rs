@@ -2,7 +2,6 @@
 
 pub mod context;
 pub mod entity;
-#[cfg(feature = "entity_store")]
 pub mod entity_store;
 pub mod property;
 pub mod property_impl;

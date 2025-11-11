@@ -258,7 +258,7 @@ mod tests {
 
     // Test item types
     #[derive(Debug, Clone, PartialEq)]
-    struct TestItem1 {
+    pub struct TestItem1 {
         value: usize,
     }
     impl Default for TestItem1 {
@@ -268,7 +268,7 @@ mod tests {
     }
 
     #[derive(Debug, Clone, PartialEq)]
-    struct TestItem2 {
+    pub struct TestItem2 {
         name: String,
     }
     impl Default for TestItem2 {
@@ -280,7 +280,7 @@ mod tests {
     }
 
     #[derive(Debug, Clone, PartialEq)]
-    struct TestItem3 {
+    pub struct TestItem3 {
         data: Vec<u8>,
     }
     impl Default for TestItem3 {

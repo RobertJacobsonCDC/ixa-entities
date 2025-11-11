@@ -18,7 +18,9 @@ use std::{
 use polonius_the_crab::{polonius, polonius_return};
 
 use crate::{
-    entity::Entity, entity_store::register_property_with_entity, property::Property,
+    entity::Entity,
+    entity_store::register_property_with_entity,
+    property::Property,
     property_value_store::PropertyValueStore,
 };
 
@@ -161,8 +163,9 @@ mod tests {
             Susceptible,
             Infected,
             Recovered,
-        } = InfectionStatus::Susceptible,
-        Person
+        },
+        Person,
+        default_const = InfectionStatus::Susceptible
     );
 
     // If the property type has, for example, a complicated `derive` clause or
@@ -172,7 +175,7 @@ mod tests {
     // specify the traits that all properties need to implement in the `derive` clause.
     #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
     struct Vaccinated(bool);
-    impl_property!(Vaccinated, Person, Vaccinated(false));
+    impl_property!(Vaccinated, Person, default_const = Vaccinated(false));
 
     #[test]
     fn test_get_property_store() {

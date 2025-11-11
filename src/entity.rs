@@ -10,12 +10,36 @@ use std::{
     any::{Any, TypeId},
     marker::PhantomData,
 };
+use std::fmt::{Debug, Formatter};
+use serde::{Deserialize, Serialize};
 
 use crate::entity_store::get_entity_metadata_static;
 
 /// A type that can be named and used (copied, cloned) but not created outside of this crate.
 /// In the `define_entity!` macro we define the alias `pub type MyEntityId = EntityId<MyEntity>`.
+#[derive(Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EntityId<E: Entity>(pub(crate) usize, PhantomData<E>);
+
+// The derive version of the `Clone` implementation introduces unnecessary trait bounds on `E: Entity`.
+impl<E: Entity> Clone for EntityId<E> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self(
+            self.0,
+            PhantomData,
+        )
+    }
+}
+
+impl<E: Entity> Debug for EntityId<E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let name = format!("{}Id", E::name());
+        f.debug_tuple(name.as_str())
+         .field(&self.0)
+         .finish()
+    }
+}
+
 
 pub struct EntityMetadata {
     properties: &'static [TypeId],
@@ -63,7 +87,6 @@ pub trait Entity: Any + Default {
     /// The index of this item in the owner, which is initialized globally per type
     /// upon first access. We explicitly initialize this in a `ctor` in order to know
     /// how many [`Entity`] types exist globally when we construct any `EntityStore`.
-    #[cfg(feature = "entity_store")]
     fn index() -> usize
     where
         Self: Sized;
@@ -125,7 +148,6 @@ macro_rules! impl_entity {
                 stringify!($entity_name)
             }
 
-            #[cfg(feature = "entity_store")]
             fn index() -> usize {
                 // This static must be initialized with a compile-time constant expression.
                 // We use `usize::MAX` as a sentinel to mean "uninitialized". This
@@ -157,7 +179,6 @@ macro_rules! impl_entity {
         // (The mutation happens inside of a `OnceCell`, which we can already have ready
         // when we construct `EntityStore`.) In other words, we could do away with `ctor`
         // if we were willing to have a mechanism for interior mutability for `EntityStore`.
-        #[cfg(feature = "entity_store")]
         $crate::paste::paste! {
             $crate::ctor::declarative::ctor!{
                 #[ctor]

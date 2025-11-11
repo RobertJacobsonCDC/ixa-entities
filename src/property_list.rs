@@ -24,6 +24,8 @@ use std::any::TypeId;
 use seq_macro::seq;
 
 use crate::{entity::Entity, property::Property};
+use crate::entity::EntityId;
+use crate::property_store::PropertyStore;
 
 pub trait PropertyList<E: Entity>: Copy + 'static {
     /// Validates that the properties are distinct. If not, returns a string describing the problematic properties.
@@ -36,6 +38,9 @@ pub trait PropertyList<E: Entity>: Copy + 'static {
     fn contains_required_properties() -> bool {
         Self::contains_properties(E::required_property_ids())
     }
+
+    /// Assigns the given entity the property values in `self` in the `property_store`.
+    fn set_values_for_entity(&self, entity_id: EntityId<E>, property_store: &PropertyStore);
 }
 
 // The empty tuple is an empty `PropertyList<E>` for every `E: Entity`.
@@ -45,6 +50,9 @@ impl<E: Entity> PropertyList<E> for () {
     }
     fn contains_properties(property_type_ids: &[TypeId]) -> bool {
         property_type_ids.is_empty()
+    }
+    fn set_values_for_entity(&self, entity_id: EntityId<E>, property_store: &PropertyStore){
+        // No values to assign.
     }
 }
 
@@ -64,12 +72,16 @@ impl<E: Entity, P: Property<E>> PropertyList<E> for (P,) {
     fn contains_properties(property_type_ids: &[TypeId]) -> bool {
         property_type_ids.len() == 1 && property_type_ids[0] == P::type_id()
     }
+    fn set_values_for_entity(&self, entity_id: EntityId<E>, property_store: &PropertyStore){
+        let property_value_store = property_store.get::<E, P>();
+        property_value_store.set(entity_id, self.0);
+    }
 }
 
 #[macro_export]
 macro_rules! impl_property_list {
     ($ct:literal) => {
-        seq!(N in 1..=$ct {
+        seq!(N in 0..$ct {
             impl<E: Entity, #( P~N: Property<E>,)*> PropertyList<E> for (#(P~N, )*){
                 fn validate() -> Result<(), String> {
                     // For `Property` distinctness check
@@ -94,6 +106,15 @@ macro_rules! impl_property_list {
                     let self_property_type_ids: [TypeId; $ct] = [#(P~N::type_id(),)*];
 
                     property_type_ids.len() <= $ct && property_type_ids.iter().all(|id| self_property_type_ids.contains(id))
+                }
+
+                fn set_values_for_entity(&self, entity_id: EntityId<E>, property_store: &PropertyStore){
+                    #({
+                        let property_value_store = property_store.get::<E, P~N>();
+                        // The compiler isn't smart enough to know that `entity_id` is `Copy` when this is
+                        // borrow-checked, so we clone it.
+                        property_value_store.set(entity_id.clone(), self.N);
+                    })*
                 }
             }
         });

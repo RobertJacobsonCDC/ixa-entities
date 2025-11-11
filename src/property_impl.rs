@@ -234,18 +234,18 @@ impl_property_with_options!(
 macro_rules! define_property {
     // Struct (tuple) with single Option<T> field (special case)
     (
-        struct $name:ident ( Option<$inner_ty:ty> )
-        $(= $default:expr)?,
+        struct $name:ident ( Option<$inner_ty:ty> ),
         $entity:ident
+        $(, $($extra:tt)+),*
     ) => {
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, $crate::serde::Serialize)]
         pub struct $name(Option<$inner_ty>);
 
         // Use impl_property_with_options! to provide a custom display implementation
         $crate::impl_property_with_options!(
             $name,
             $entity
-            $(, default_const = $default)?
+            $(, $($extra)+)*
             , display_impl = |value: &Option<$inner_ty>| {
                 match value {
                     Some(v) => format!("{:?}", v),
@@ -255,61 +255,26 @@ macro_rules! define_property {
         );
     };
 
-    // Struct (tuple) with default
-    (
-        struct $name:ident ( $($field_ty:ty),* $(,)? )
-        = $default:expr,
-        $entity:ident
-    ) => {
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
-        pub struct $name($($field_ty),*);
-        $crate::impl_property!($name, $entity, $default);
-    };
-
-    // Struct (tuple) without default
+    // Struct (tuple)
     (
         struct $name:ident ( $($field_ty:ty),* $(,)? ),
         $entity:ident
+        $(, $($extra:tt)+),*
     ) => {
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, $crate::serde::Serialize)]
         pub struct $name($($field_ty),*);
-        $crate::impl_property!($name, $entity);
+        $crate::impl_property!($name, $entity $(, $($extra)+)*);
     };
 
-    // Struct (named fields) with default
-    (
-        struct $name:ident { $($field_name:ident : $field_ty:ty),* $(,)? }
-        = $default:expr,
-        $entity:ident
-    ) => {
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
-        pub struct $name { $($field_name : $field_ty),* }
-        $crate::impl_property!($name, $entity, $default);
-    };
-
-    // Struct (named fields) without default
+    // Struct (named fields)
     (
         struct $name:ident { $($field_name:ident : $field_ty:ty),* $(,)? },
         $entity:ident
+        $(, $($extra:tt)+),*
     ) => {
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, $crate::serde::Serialize)]
         pub struct $name { $($field_name : $field_ty),* }
-        $crate::impl_property!($name, $entity);
-    };
-
-    // Enum with default
-    (
-        enum $name:ident {
-            $($variant:ident),* $(,)?
-        }
-        = $default:expr,
-        $entity:ident
-    ) => {
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
-        pub enum $name {
-            $($variant),*
-        }
-        $crate::impl_property!($name, $entity, $default);
+        $crate::impl_property!($name, $entity $(, $($extra)+)*);
     };
 
     // Enum without default
@@ -318,12 +283,13 @@ macro_rules! define_property {
             $($variant:ident),* $(,)?
         },
         $entity:ident
+        $(, $($extra:tt)+),*
     ) => {
-        #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, $crate::serde::Serialize)]
         pub enum $name {
             $($variant),*
         }
-        $crate::impl_property!($name, $entity);
+        $crate::impl_property!($name, $entity $(, $($extra)+)*);
     };
 }
 
@@ -334,14 +300,9 @@ macro_rules! define_property {
 ///   on the property without explicitly setting a value first will panic.
 #[macro_export]
 macro_rules! impl_property {
-    // T with constant default value
-    ($property:ident, $entity:ident, $default_const:expr) => {
-        $crate::impl_property_with_options!($property, $entity, default_const = $default_const);
-    };
-
     // T without constant default value
-    ($property:ident, $entity:ident) => {
-        $crate::impl_property_with_options!($property, $entity);
+    ($property:ident, $entity:ident $(, $($extra:tt)+),*) => {
+        $crate::impl_property_with_options!($property, $entity $(, $($extra)+)*);
     };
 }
 pub use impl_property;
@@ -355,12 +316,12 @@ use crate::property::{Property, PropertyInitializationKind};
 /// - `$property`: The identifier for the type implementing [`Property`].
 /// - `$entity`: The entity type this property is associated with.
 /// - Optional parameters (each may be omitted; defaults will be used):
-///   - `canonical_value = <type>` — If the type stored in the index differs from the property's value type.
 ///   - `initialization_kind = <expr>` — Initialization strategy; defaults to `PropertyInitializationKind::Explicit`.
 ///   - `is_required = <bool>` — Whether new entities must explicitly set this property; defaults to `false`.
 ///   - `compute_derived_fn = <expr>` — Function used to compute derived properties; defaults to `None`.
 ///   - `default_const = <expr>` — Constant default value if the property has one; defaults to `None`.
 ///   - `display_impl = <expr>` — Function converting the canonical value to a string; defaults to `|v| format!("{v:?}")`.
+///   - `canonical_value = <type>` — If the type stored in the index differs from the property's value type.
 ///   - `make_canonical = <expr>` — Function converting from `Self` to `CanonicalValue`; defaults to `|s: &Self| *s`.
 ///   - `make_uncanonical = <expr>` — Function converting from `CanonicalValue` to `Self`; defaults to `|v| v`.
 #[macro_export]
@@ -368,12 +329,12 @@ macro_rules! impl_property_with_options {
     (
         $property:ident,
         $entity:ident
-        $(, canonical_value = $canonical_value:ty)?
         $(, initialization_kind = $initialization_kind:expr)?
         $(, is_required = $is_required:expr)?
         $(, compute_derived_fn = $compute_derived_fn:expr)?
         $(, default_const = $default_const:expr)?
         $(, display_impl = $display_impl:expr)?
+        $(, canonical_value = $canonical_value:ty)?
         $(, make_canonical = $make_canonical:expr)?
         $(, make_uncanonical = $make_uncanonical:expr)?
     ) => {
