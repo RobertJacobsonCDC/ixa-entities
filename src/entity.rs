@@ -40,12 +40,6 @@ impl<E: Entity> Debug for EntityId<E> {
     }
 }
 
-
-pub struct EntityMetadata {
-    properties: &'static [TypeId],
-    required: &'static [TypeId],
-}
-
 impl<E: Entity> EntityId<E> {
     /// Only constructible from this crate.
     // pub(crate)

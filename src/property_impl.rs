@@ -7,7 +7,7 @@ Macros for implementing properties.
 For the most common cases, use the `define_property!` macro. This macro defines a struct or enum
 with the standard derives required by the `Property` trait and implements `Property` (via `impl_property!`) for you.
 
-```rust
+```rust,ignore
 define_property!(struct Age(u8), Person);
 define_property!(struct Location(City, State), Person);
 define_property!(
@@ -15,8 +15,9 @@ define_property!(
         Susceptible,
         Infectious,
         Recovered,
-    } = InfectionStatus::Susceptible,
-    Person
+    },
+    Person,
+    default_const = InfectionStatus::Susceptible
 );
 ```
 
@@ -40,7 +41,7 @@ You can implement `Property` for existing types using the `impl_property!` macro
 defines the `Property` trait implementation for you but doesn't take care of the `#[derive(..)]`
 boilerplate, so you have to remember to `derive` all of `Copy, Clone, Debug, PartialEq, Serialize`.
 
-```rust
+```rust,ignore
 define_entity!(Person);
 
 // The `define_property!` automatically adds `pub` visibility. If we want to restrict the
@@ -77,7 +78,7 @@ implementation of your property type. It takes optional keyword arguments
 for things like the default value, initialization strategy, and whether the
 property is required, and how the property is converted to a string for display.
 
-```rust
+```rust,ignore
 impl_property_with_options!(
     InfectionStatus,
     Person,
@@ -99,7 +100,7 @@ the index. If the property type is different from the value type, you can
 specify a custom canonical type using the `canonical_value` parameter, but
 you also must provide a conversion function to and from the canonical type.
 
-```rust
+```rust,ignore
 define_entity!(WeatherStation);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
@@ -129,33 +130,43 @@ impl_property_with_options!(
 ///
 /// ### 1. Tuple Structs
 /// ```rust
+/// # use ixa_entities::{define_entity, define_property};
+/// # define_entity!(Person);
 /// define_property!(struct Age(u8), Person);
 /// ```
 /// Expands to:
 /// ```rust
+/// # use ixa_entities::{impl_property, define_entity, serde::Serialize};
+/// # define_entity!(Person);
 /// #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 /// pub struct Age(u8);
 /// impl_property!(Age, Person);
 /// ```
 ///
 /// You can define multiple tuple fields:
-/// ```rust
+/// ```rust,ignore
 /// define_property!(struct Location(City, State), Person);
 /// ```
 ///
 /// ### 2. Named-field Structs
 /// ```rust
-/// define_property!(struct Coordinates { x: f32, y: f32 }, Person);
+/// # use ixa_entities::{define_property, define_entity};
+/// # define_entity!(Person);
+/// define_property!(struct Coordinates { x: i32, y: i32 }, Person);
 /// ```
 /// Expands to:
 /// ```rust
+/// # use ixa_entities::{impl_property, define_entity, serde::Serialize};
+/// # define_entity!(Person);
 /// #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
-/// pub struct Coordinates { x: f32, y: f32 }
+/// pub struct Coordinates { x: i32, y: i32 }
 /// impl_property!(Coordinates, Person);
 /// ```
 ///
 /// ### 3. Enums
 /// ```rust
+/// # use ixa_entities::{define_property, define_entity};
+/// # define_entity!(Person);
 /// define_property!(
 ///     enum InfectionStatus {
 ///         Susceptible,
@@ -167,6 +178,8 @@ impl_property_with_options!(
 /// ```
 /// Expands to:
 /// ```rust
+/// # use ixa_entities::{impl_property, define_entity, serde::Serialize};
+/// # define_entity!(Person);
 /// #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 /// pub enum InfectionStatus {
 ///     Susceptible,
@@ -176,53 +189,11 @@ impl_property_with_options!(
 /// impl_property!(InfectionStatus, Person);
 /// ```
 ///
-/// ### 4. Optional Default Value
-///
-/// Each of the above forms also supports an optional `= <default_value>` clause, which
-/// passes the default constant expression to `impl_property!`. This is used when the
-/// property type has a well-defined constant default value.
-///
-/// For example:
-/// ```rust
-/// define_property!(
-///     enum InfectionStatus {
-///         Susceptible,
-///         Infectious,
-///         Recovered,
-///     } = InfectionStatus::Susceptible,
-///     Person
-/// );
-/// ```
-/// Expands to:
-/// ```rust
-/// #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
-/// pub enum InfectionStatus {
-///     Susceptible,
-///     Infectious,
-///     Recovered,
-/// }
-/// impl_property!(InfectionStatus, Person, InfectionStatus::Susceptible);
-/// ```
-///
-/// The same syntax works for structs:
-/// ```rust
-/// define_property!(struct Age(u8) = 0, Person);
-/// ```
-///
-/// Expands to:
-/// ```rust
-/// #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
-/// struct Age(u8);
-/// impl_property!(Age, Person, 0);
-/// ```
-///
-///
-///
 /// ### Notes
 ///
 /// - The generated type always derives the following traits:
 ///   `Default`, `Debug`, `PartialEq`, `Eq`, `Clone`, `Copy`, and `Serialize`.
-/// - Use the optional `= <default_value>` clause to define a compile-time constant
+/// - Use the optional `default_const = <default_value>` argument to define a compile-time constant
 ///   default for the property.
 /// - Trailing commas in field or variant lists are allowed.
 /// - If you need a more complex type definition (e.g., generics, attributes, or

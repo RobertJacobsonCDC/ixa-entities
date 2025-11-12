@@ -1,5 +1,26 @@
 # Notes about `Entity` Implementation
 
+## Integration with `Context`
+
+Arguments for making the `EntityStore` and `PropertyStore` fields of `Context`:
+
+- Not every subsystem cares about entities/properties, but a _lot_ of them do.
+  (`PluginContext` defines the minimal interface all `DataPlugin`s can assume exists. Half
+  of the trait extension constraints in `PluginContext` are related to `PeopleContext`.)
+- Accesses to these stores are often in the hottest paths / tightest loops,
+  which recommends minimizing indirection (one fewer pointer dereference)
+
+Arguments against making the `EntityStore` and `PropertyStore` fields of `Context`:
+
+- Historically the only intrinsic properties and functions of the concrete `Context` type is
+  managing the timeline (events and plans). All other functionality is (was) provided by plugins.
+  Adding entities (`EntityStore` and `PropertyStore`) to `Context` expands its responsibilities
+  from "events that happen in time" to also include "state of the world". Philosophically, one
+  could argue this violates the "separation of concerns" / "single responsibility" principle.
+  (Counterargument: A good software engineer is not constrained by rules of thumb.)
+- Is the indirection required for accessing a `DataPlugin` even measurable?
+
+
 ## `ValueVec`
 
 ### Options for `!Drop`
