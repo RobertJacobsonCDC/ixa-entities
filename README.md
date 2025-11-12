@@ -56,7 +56,6 @@ impl<V> ValueVec<V> {
   the problem? (Could there be a hidden `Drop` impl called somehow by virtue of what the type is?)
 
 
-
 ## Types
 
 ### `struct EntityId<E: Entity>(usize, PhantomData<E>)`
@@ -74,3 +73,31 @@ But maybe we should only store: `Vec<Property>`
 If the value is allowed to be not set, it should be an `Option<Property>`. The difference is, do we enforce this at 
 the API level, or do we make client code deal with it?
 
+## General Stuff
+
+There are several places in `ixa` internals where we have checks for
+things that should never happen unless there's a bug _in ixa itself_. These
+checks could be conditionally removed depending on the build profile:
+
+```rust
+#[inline(always)]
+fn expect_debug_only<T>(opt: Option<T>, msg: &str) -> T {
+    if cfg!(debug_assertions) {
+        opt.expect(msg)
+    } else {
+        unsafe { opt.unwrap_unchecked() }
+    }
+}
+
+// or the plain vanilla inline version:
+let value = if cfg!(debug_assertions) {
+  property_store
+          .get(entity_id)
+          .expect("getting a property value with \"constant\" initialization should never fail")
+} else {
+  unsafe { property_store.get(entity_id).unwrap_unchecked() }
+};
+```
+
+The actual performance impact of this is probably negligible. It
+might be worth running some experiments to see if it's worth it.
