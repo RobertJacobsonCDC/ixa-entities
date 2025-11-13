@@ -5,10 +5,18 @@ An integration test that demonstrates the code works from client code external t
 */
 #![allow(unused)]
 
-use ixa_entities::entity_store::EntityStore;
 use ixa_entities::{
-    define_entity, define_property, entity::EntityId, impl_property, property::Property,
-    property_store::PropertyStore, property_value_store::PropertyValueStore, serde::Serialize,
+    define_entity,
+    define_property,
+    entity::{
+        EntityId,
+        entity_store::EntityStore,
+        property::Property,
+        property_store::PropertyStore,
+        property_value_store::PropertyValueStore
+    },
+    impl_property,
+    serde::Serialize
 };
 
 define_entity!(Person);
@@ -33,9 +41,7 @@ define_property!(
 
 
 fn main() {
-
     let my_age = Age(20);
-
     println!("My age: {:?}", my_age.get_display());
 
     let mut context = ixa_entities::Context::new();

@@ -21,14 +21,15 @@ define_property!(
 );
 ```
 
-Notice the convenient `= <default_value>` clause that allows you to define a compile-time constant
-default value for the property.
+Notice the convenient `default_const = <default_value>` keyword argument that allows you to
+define a compile-time constant default value for the property. This is an optional argument.
 
 The primary advantage of using this macro is that it automatically derives the list of traits every
 `Property` needs to derive for you. You don't have to remember them. You also get a cute syntax for
 specifying the default value, but it's not much harder to specify default values using other macros.
 
-Notice you need to use the `struct` or `enum` keywords, but you don't need to specify the visibility. A `pub` visibility is added automatically in the expansion.
+Notice you need to use the `struct` or `enum` keywords, but you don't need to
+specify the visibility. A `pub` visibility is added automatically in the expansion.
 
 # [`impl_property!`]
 
@@ -62,13 +63,13 @@ enum InfectionStatus {
     Recovered,
 }
 // We also specify the default value explicitly for entities.
-impl_property!(InfectionStatus, Person, InfectionStatus::Susceptible);
+impl_property!(InfectionStatus, Person, default_const = InfectionStatus::Susceptible);
 
 // Exactly equivalent to
 //    `define_property!(struct Vaccinated(bool) = Vaccinated(false), Person);`
 #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
 pub struct Vaccinated(bool);
-impl_property!(Vaccinated, Person, Vaccinated(false));
+impl_property!(Vaccinated, Person, default_const = Vaccinated(false));
 ```
 
 # [`impl_property_with_options`]
@@ -130,13 +131,13 @@ impl_property_with_options!(
 ///
 /// ### 1. Tuple Structs
 /// ```rust
-/// # use ixa_entities::{define_entity, define_property};
+/// # use ixa::{define_entity, define_property};
 /// # define_entity!(Person);
 /// define_property!(struct Age(u8), Person);
 /// ```
 /// Expands to:
 /// ```rust
-/// # use ixa_entities::{impl_property, define_entity, serde::Serialize};
+/// # use ixa::{impl_property, define_entity, serde::Serialize};
 /// # define_entity!(Person);
 /// #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 /// pub struct Age(u8);
@@ -150,13 +151,13 @@ impl_property_with_options!(
 ///
 /// ### 2. Named-field Structs
 /// ```rust
-/// # use ixa_entities::{define_property, define_entity};
+/// # use ixa::{define_property, define_entity};
 /// # define_entity!(Person);
 /// define_property!(struct Coordinates { x: i32, y: i32 }, Person);
 /// ```
 /// Expands to:
 /// ```rust
-/// # use ixa_entities::{impl_property, define_entity, serde::Serialize};
+/// # use ixa::{impl_property, define_entity, serde::Serialize};
 /// # define_entity!(Person);
 /// #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 /// pub struct Coordinates { x: i32, y: i32 }
@@ -165,7 +166,7 @@ impl_property_with_options!(
 ///
 /// ### 3. Enums
 /// ```rust
-/// # use ixa_entities::{define_property, define_entity};
+/// # use ixa::{define_property, define_entity};
 /// # define_entity!(Person);
 /// define_property!(
 ///     enum InfectionStatus {
@@ -178,7 +179,7 @@ impl_property_with_options!(
 /// ```
 /// Expands to:
 /// ```rust
-/// # use ixa_entities::{impl_property, define_entity, serde::Serialize};
+/// # use ixa::{impl_property, define_entity, serde::Serialize};
 /// # define_entity!(Person);
 /// #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 /// pub enum InfectionStatus {
@@ -263,6 +264,7 @@ macro_rules! define_property {
         $crate::impl_property!($name, $entity $(, $($extra)+)*);
     };
 }
+pub use define_property;
 
 /// Defines a property with the following parameters:
 /// * `$property`: A name for the identifier type of the property
@@ -277,8 +279,6 @@ macro_rules! impl_property {
     };
 }
 pub use impl_property;
-
-use crate::property::{Property, PropertyInitializationKind};
 
 /// Defines a property type with optional named configuration parameters. The named parameters
 /// need to be supplied in the order listed below even if some of them are not used.
@@ -341,12 +341,13 @@ macro_rules! impl_property_with_options {
     // If `default_const` is present (matched by `$expr`), use `Constant`.
     // If it's absent, fall back to `Explicit`.
     (@unwrap_or_default_kind $expr:expr) => {
-        $crate::property::PropertyInitializationKind::Constant
+        $crate::entity::property::PropertyInitializationKind::Constant
     };
     (@unwrap_or_default_kind) => {
-        $crate::property::PropertyInitializationKind::Explicit
+        $crate::entity::property::PropertyInitializationKind::Explicit
     };
 }
+pub use impl_property_with_options;
 
 /// Internal macro used to define common boilerplate for property types that
 /// implement the [`Property`] trait. The `impl_property_with_options`
@@ -383,10 +384,10 @@ macro_rules! __impl_property_common {
         $make_canonical:expr,      // A function that takes a value and returns a canonical value
         $make_uncanonical:expr     // A function that takes a canonical value and returns a value
     ) => {
-        impl $crate::property::Property<$entity> for $property {
+        impl $crate::entity::property::Property<$entity> for $property {
             type CanonicalValue = $canonical_value;
 
-            fn initialization_kind() -> $crate::property::PropertyInitializationKind {
+            fn initialization_kind() -> $crate::entity::property::PropertyInitializationKind {
                 $initialization_kind
             }
 
@@ -435,7 +436,7 @@ macro_rules! __impl_property_common {
                 }
 
                 // Slow path: initialize it.
-                $crate::property_store::initialize_property_index(&INDEX)
+                $crate::entity::property_store::initialize_property_index(&INDEX)
             }
         }
 
@@ -449,12 +450,14 @@ macro_rules! __impl_property_common {
             $crate::ctor::declarative::ctor!{
                 #[ctor]
                 fn [<_register_property_ $entity:snake _ $property:snake>]() {
-                    $crate::property_store::add_to_property_registry::<$entity, $property>();
+                    $crate::entity::property_store::add_to_property_registry::<$entity, $property>();
                 }
             }
         }
     };
 }
+pub use __impl_property_common;
+
 
 /*
 /// Defines a derived property with the following parameters:

@@ -11,7 +11,7 @@ create or destructure `EntityId<Entity>` values directly. Instead,
 
 use std::{
     any::{Any, TypeId},
-    cell::{OnceCell, Ref, RefCell, RefMut},
+    cell::OnceCell,
     collections::HashMap,
     sync::{
         LazyLock, Mutex,
@@ -246,9 +246,8 @@ mod tests {
         thread,
     };
 
-    use crate::{
-        define_entity,
-        entity::Entity,
+    use crate::entity::{
+        Entity,
         entity_store::{
             EntityStore, add_to_entity_registry, get_registered_entity_count,
             initialize_entity_index,

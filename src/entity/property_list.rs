@@ -23,9 +23,14 @@ use std::any::TypeId;
 
 use seq_macro::seq;
 
-use crate::{entity::Entity, property::Property};
-use crate::entity::EntityId;
-use crate::property_store::PropertyStore;
+use super::{
+    entity::{
+        Entity,
+        EntityId
+    },
+    property::Property,
+    property_store::PropertyStore
+};
 
 pub trait PropertyList<E: Entity>: Copy + 'static {
     /// Validates that the properties are distinct. If not, returns a string describing the problematic properties.
@@ -51,7 +56,7 @@ impl<E: Entity> PropertyList<E> for () {
     fn contains_properties(property_type_ids: &[TypeId]) -> bool {
         property_type_ids.is_empty()
     }
-    fn set_values_for_entity(&self, entity_id: EntityId<E>, property_store: &PropertyStore){
+    fn set_values_for_entity(&self, _entity_id: EntityId<E>, _property_store: &PropertyStore){
         // No values to assign.
     }
 }
@@ -78,7 +83,7 @@ impl<E: Entity, P: Property<E>> PropertyList<E> for (P,) {
     }
 }
 
-#[macro_export]
+// Used only within this module.
 macro_rules! impl_property_list {
     ($ct:literal) => {
         seq!(N in 0..$ct {

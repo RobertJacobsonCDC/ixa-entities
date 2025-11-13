@@ -15,9 +15,7 @@ use std::{
     },
 };
 
-use polonius_the_crab::{polonius, polonius_return};
-
-use crate::{
+use super::{
     entity::Entity,
     entity_store::register_property_with_entity,
     property::Property,
@@ -137,18 +135,9 @@ impl PropertyStore {
 
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
-
-    use ctor::declarative::ctor;
-    use serde::Serialize;
-
-    use crate::{
-        define_entity, define_property,
-        entity::EntityId,
-        impl_property,
-        property_store::{PropertyStore, get_registered_property_count},
-        property_value_store::PropertyValueStore,
-    };
+    use super::*;
+    use crate::entity::EntityId;
+    use crate::{define_entity, define_property, impl_property};
 
     define_entity!(Person);
 
@@ -173,7 +162,7 @@ mod tests {
     // `define_property!` macro. In that case, you can use the `impl_property!` macro for
     // a type that has already been defined. The downside is that you have to manually
     // specify the traits that all properties need to implement in the `derive` clause.
-    #[derive(Copy, Clone, Debug, PartialEq, Serialize)]
+    #[derive(Copy, Clone, Debug, PartialEq, crate::serde::Serialize)]
     struct Vaccinated(bool);
     impl_property!(Vaccinated, Person, default_const = Vaccinated(false));
 

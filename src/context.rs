@@ -1,5 +1,6 @@
-use crate::{
-    entity::{Entity, EntityId},
+use crate::entity::{
+    Entity, 
+    EntityId,
     entity_store::EntityStore,
     property_list::PropertyList,
     property_store::PropertyStore,

@@ -4,13 +4,11 @@ A `PropertyStore<P: Property>` is the backing storage for property values.
 
 */
 
-use std::any::{Any, TypeId};
-
-use crate::{
+use super::{
     entity::{Entity, EntityId},
     property::{Property, PropertyInitializationKind},
-    value_vec::ValueVec,
 };
+use crate::value_vec::ValueVec;
 
 pub struct PropertyValueStore<E: Entity, P: Property<E>> {
     data: ValueVec<Option<P>>,
